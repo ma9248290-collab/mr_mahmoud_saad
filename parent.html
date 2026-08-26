@@ -287,6 +287,31 @@ body {
     .auth-brand-side { display: none; }
     .auth-container { flex-direction: column; border-radius: 24px; min-height: auto; width: 95%; }
     .auth-form-side { padding: 40px 25px; }
+
+
+
+    /* 📱 تظبيط الكلمات الطايرة عشان متغطيش على وش المستر في الموبايل */
+    .hero-image-wrapper img { 
+        max-width: 85%; /* تصغير الصورة سنة عشان ندي مساحة للكلمات على الأطراف */
+    } 
+    .float-icon { 
+        padding: 8px 15px; 
+        font-size: 13px !important; /* تصغير الخط */
+        border-radius: 12px; 
+    }
+    .float-1 { 
+        top: 0%; 
+        right: 0%; /* زقيناها لفوق يمين */
+    }
+    .float-2 { 
+        bottom: 5%; 
+        left: 0%; /* زقيناها لتحت شمال */
+        font-size: 14px !important; 
+    }
+    .float-3 { 
+        top: 45%; 
+        left: -5%; /* زقيناها في النص على الشمال بره شوية */
+    }
 }
 /* تنسيقات المنصة من الداخل */
 #app-layout { display: none; height: 100vh; overflow: hidden; }
