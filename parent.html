@@ -1417,7 +1417,12 @@ currentStudent.level = (studentGroupObj && studentGroupObj.level) ? studentGroup
 
             btn.innerText = "البحث عن الكود 🔍"; btn.disabled = false;
         }
-        window.studentHasAccess = function(lec) {
+
+
+
+
+        // 💡 تحديث الدالة دي عشان تمنع الدخول من زرار (المكتبة المرئية) من بره
+window.studentHasAccess = function(lec) {
     try {
         if (!currentStudent) return false;
         
@@ -1426,7 +1431,7 @@ currentStudent.level = (studentGroupObj && studentGroupObj.level) ? studentGroup
             if (currentStudent.purchasedCourses.includes(lec.id)) return true;
         }
 
-        // 2. تجميع كل الحصص المرتبطة بهذا الفيديو (سواء النظام القديم أو المصفوفة الجديدة)
+        // 2. تجميع كل الحصص المرتبطة بهذا الكورس 
         let linkedArr = [];
         if (lec.videos && Array.isArray(lec.videos)) {
             lec.videos.forEach(v => {
@@ -1452,8 +1457,8 @@ currentStudent.level = (studentGroupObj && studentGroupObj.level) ? studentGroup
                 let session = sessionsArray.find(s => s && String(s.id) === String(sessId));
                 if (session && session.attendance) {
                     let attendanceStatus = session.attendance[String(currentStudent.code)] || session.attendance[String(currentStudent.phone)];
-                    if (attendanceStatus === 'present' || attendanceStatus === 'late') {
-                        return true; // لو حضر في سنتر أو حضر تعويض في سنتر تاني، هيفتح معاه فوراً!
+                    if (attendanceStatus === 'present' || attendanceStatus === 'late' || (typeof attendanceStatus === 'object' && attendanceStatus.status === 'makeup')) {
+                        return true; // لو حضر في أي حصة مربوطة، هيفتح معاه فوراً
                     }
                 }
             }
@@ -1461,6 +1466,8 @@ currentStudent.level = (studentGroupObj && studentGroupObj.level) ? studentGroup
         return false; 
     } catch(err) { return false; }
 };
+       
+       
         async function fetchStudentNotifications() {
             try {
                 let notifRes = await fetch(`https://el-senior-system-default-rtdb.europe-west1.firebasedatabase.app/${globalTeacherId}/notifications.json`);
@@ -2100,7 +2107,9 @@ window.renderStudentLectures = function() {
     });
 };
 
-// 2. النافذة المنبثقة للفيديوهات (هنا السحر كله: بيقيم كل فيديو لوحده)
+// ==========================================
+// إصلاح فتح الفيديوهات المدفوعة للطالب الذي حضر الحصة (منصة الطالب)
+// ==========================================
 window.openStudentCourseDetails = async function(courseId) {
     let course = window.allLectures.find(l => l.id === courseId);
     if(!course) return;
@@ -2108,12 +2117,10 @@ window.openStudentCourseDetails = async function(courseId) {
     let allSubs = {};
     let safeExams = [];
     try {
-        // جلب الإجابات عشان نتأكد الطالب امتحن ولا لا
         let subRes = await fetch(`https://el-senior-system-default-rtdb.europe-west1.firebasedatabase.app/${globalTeacherId}/onlineSubmissions.json`);
         allSubs = await subRes.json() || {};
         window.studentSubmissions = allSubs;
 
-        // جلب الامتحانات من السيرفر مباشرة عشان نجيب اسم الامتحان المطلوب
         let examsRes = await fetch(`https://el-senior-system-default-rtdb.europe-west1.firebasedatabase.app/${globalTeacherId}/data/onlineExams.json`);
         let fetchedExams = await examsRes.json() || [];
         safeExams = Array.isArray(fetchedExams) ? fetchedExams : Object.values(fetchedExams).filter(e => e !== null);
@@ -2126,7 +2133,6 @@ window.openStudentCourseDetails = async function(courseId) {
     let vids = course.videos || [];
     let playlistHtml = "";
     
-    // دعم النظام القديم (لو الطالب كان شاري الكورس القديم كله يتفتحله)
     let hasPurchasedWholeCourse = currentStudent.purchasedCourses && currentStudent.purchasedCourses.includes(courseId);
 
     vids.forEach((v, idx) => {
@@ -2138,53 +2144,63 @@ window.openStudentCourseDetails = async function(courseId) {
         
         let hasPurchasedVideo = currentStudent.purchasedCourses && (currentStudent.purchasedCourses.includes(specificVideoId) || hasPurchasedWholeCourse);
 
-        // فحص شرط الحضور (لو الفيديو مربوط بحصة)
+        // 🔥 الحل الجذري لفحص الحضور المتعدد
         let didAttend = false;
-        if (v.linkedSession) {
-            let sessionObj = window.allClassSessions.find(s => String(s.id) === String(v.linkedSession));
-            didAttend = sessionObj && sessionObj.attendance && (sessionObj.attendance[currentStudent.code] === 'present' || sessionObj.attendance[currentStudent.phone] === 'present');
+        let linkedArr = [];
+        if (v.linkedSessions && Array.isArray(v.linkedSessions)) {
+            linkedArr = linkedArr.concat(v.linkedSessions);
+        }
+        if (v.linkedSession && !linkedArr.includes(v.linkedSession)) {
+            linkedArr.push(v.linkedSession); 
         }
 
-        // فحص شرط الامتحان
+        if (linkedArr.length > 0 && window.allClassSessions) {
+            let sessionsArray = Array.isArray(window.allClassSessions) ? window.allClassSessions : Object.values(window.allClassSessions);
+            for (let sessId of linkedArr) {
+                if (!sessId) continue;
+                let sessionObj = sessionsArray.find(s => s && String(s.id) === String(sessId));
+                if (sessionObj && sessionObj.attendance) {
+                    let attStatus = sessionObj.attendance[String(currentStudent.code)] || sessionObj.attendance[String(currentStudent.phone)];
+                    // لو حضر في أي حصة من اللي المدرس علم عليهم، الفيديو يفتح
+                    if (attStatus === 'present' || attStatus === 'late' || (typeof attStatus === 'object' && attStatus.status === 'makeup')) {
+                        didAttend = true;
+                        break; 
+                    }
+                }
+            }
+        }
+
         let isLockedByExam = false;
         let requiredExamObj = null;
         
         if (v.requiredExam) {
-            // البحث عن تفاصيل الامتحان من الداتا
             requiredExamObj = safeExams.find(e => e.id === v.requiredExam); 
-            
             let examSubs = allSubs[v.requiredExam];
             let didSubmitExam = examSubs && (examSubs[currentStudent.code] || examSubs[currentStudent.phone]);
-            
-            // لو ممتحنش، هنقفل الفيديو
             if (!didSubmitExam) isLockedByExam = true;
         }
 
         let canWatch = isVideoFree || hasPurchasedVideo || didAttend;
 
         if (isLockedByExam && requiredExamObj) {
-            // 🚨 التعديل الجديد: إظهار اسم الامتحان وزرار الانتقال للامتحان
             playlistHtml += `
             <div style="background: var(--bg-color); padding: 15px 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border); margin-bottom: 10px; opacity: 0.9;">
                 <span style="font-weight: 900; color: var(--secondary); font-size: 15px;">🔒 ${v.title} <br><span style="font-size:13px; color:#f59e0b;">مغلق بامتحان: (${requiredExamObj.title})</span></span>
                 <button class="btn" style="background: #f59e0b; padding: 8px 15px; width: auto; font-size: 13px; font-weight: bold; border-radius: 10px; box-shadow: 0 4px 10px rgba(245, 158, 11, 0.3); animation: pulse-glow 2s infinite;" onclick="document.getElementById('studentCourseDetailsModal').style.display='none'; showOnlineExams();">انتقل للامتحان 📝</button>
             </div>`;
         } else if (isLockedByExam && !requiredExamObj) {
-            // لو المدرس مسح الامتحان من السيستم بس لسه مربوط هنا (أمان)
             playlistHtml += `
             <div style="background: var(--bg-color); padding: 15px 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border); margin-bottom: 10px; opacity: 0.7;">
                 <span style="font-weight: 900; color: var(--secondary); font-size: 15px;">🔒 ${v.title} <br><span style="font-size:12px; color:var(--danger);">الامتحان المطلوب غير متاح حالياً</span></span>
                 <button class="btn" style="background: #94a3b8; padding: 8px 15px; width: auto; font-size: 13px; font-weight: bold; border-radius: 10px; cursor: not-allowed;" disabled>مغلق 🔐</button>
             </div>`;
         } else if (canWatch) {
-            // مفتوح وجاهز للتشغيل
             playlistHtml += `
             <div style="background: #f0fdf4; padding: 15px 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #10b981; margin-bottom: 10px;">
                 <span style="font-weight: 900; color: #065f46; font-size: 16px;">▶️ ${v.title}</span>
                 <button class="btn" style="background: var(--success); padding: 8px 20px; width: auto; font-size: 14px; font-weight: bold; border-radius: 10px;" onclick="document.getElementById('studentCourseDetailsModal').style.display='none'; openCoursePlayer('${course.id}', ${idx})">تشغيل المحاضرة ▶️</button>
             </div>`;
         } else {
-            // محتاج يشتري
             playlistHtml += `
             <div style="background: var(--bg-color); padding: 15px 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border); margin-bottom: 10px;">
                 <span style="font-weight: 900; color: var(--secondary); font-size: 15px;">🔒 ${v.title}</span>
@@ -2196,6 +2212,7 @@ window.openStudentCourseDetails = async function(courseId) {
     document.getElementById("detailsCoursePlaylist").innerHTML = playlistHtml;
     document.getElementById("studentCourseDetailsModal").style.display = "flex";
 };
+
 
 
 // 3. دالة الشراء الجديدة (بتشتري فيديو معين مش كورس كامل)
