@@ -2070,17 +2070,26 @@ window.playCourseVideo = async function(url, videoTitle, courseId, videoIndex, e
         window.addEventListener('blur', applyBlackout);
         window.addEventListener('focus', removeBlackout);
 
-        // 1. عرض الكروت من بره (شيلنا زرار الشراء، خلينا الدخول مجاني عشان يشتري من جوه)
+
+        // 1. عرض الكروت من بره (مع فلترة ذكية لصف ومسار الطالب)
 window.renderStudentLectures = function() {
     let list = document.getElementById("studentLecturesList");
     if(!list) return; list.innerHTML = "";
     
-    if(window.allLectures.length === 0) {
+    // 🚀🔥 الحل هنا: فلترة الكورسات بناءً على صف ومسار الطالب الحالي قبل العرض
+    let myLectures = window.allLectures.filter(l => {
+        if (!l) return false;
+        let levelMatch = l.level === "all" || l.level === currentStudent.level;
+        let trackMatch = !l.track || l.track === 'all' || l.track === (currentStudent.track || 'عام');
+        return levelMatch && trackMatch;
+    });
+
+    if(myLectures.length === 0) {
         list.innerHTML = `<div style="grid-column: 1/-1; text-align:center; padding: 40px; font-weight:bold; color:var(--text-muted); background: var(--card-bg); border-radius: 20px; border: 2px dashed var(--border);">لا توجد كورسات متاحة حالياً.</div>`;
         return;
     }
 
-    window.allLectures.forEach(lec => {
+    myLectures.forEach(lec => {
         let maxViews = parseInt(lec.maxViews) || 0;
         let viewsInfo = maxViews > 0 ? ` 👁️ ${maxViews} مشاهدة` : ` 👁️ غير محدود`;
         
