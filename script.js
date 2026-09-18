@@ -6048,16 +6048,28 @@ window.renderAttendanceTable = function(session) {
     const groupS = classSessions.filter(s => s.group === session.group).sort((a,b)=>new Date(a.date)-new Date(b.date)); 
     const prevSession = groupS[groupS.findIndex(s => s.id === session.id) - 1]; 
     
-    let htmlContent = ""; 
+    let htmlContent = ""; // 👈 المتغير المنقذ للتهنيج
 
     gStudents.forEach(st => { 
-        const stat = session.attendance[st.code] || session.attendance[st.phone]; 
-        const statHtml = stat === 'present' ? '<span style="color:#10b981; font-weight:bold;">حاضر ✓</span>' : stat === 'late' ? '<span style="color:#f59e0b; font-weight:bold;">متأخر ⏳</span>' : stat === 'absent' ? '<span style="color:#ef4444; font-weight:bold;">غائب ❌</span>' : '<span style="color:#64748b;">لم يسجل</span>'; 
+        // 🚀 الإصلاح الجذري: التعامل مع الأوبجكت الجديد للحضور التعويضي ومعالجة القيم الفارغة
+        let statData = session.attendance[st.code] || session.attendance[st.phone]; 
+        let stat = typeof statData === 'object' ? statData.status : statData; // لو كان أوبجكت هنجيب الـ status، لو سترينج هناخده زي ما هو
+        
+        let statHtml = '<span style="color:#64748b;">لم يسجل</span>';
+        if (stat === 'present') statHtml = '<span style="color:#10b981; font-weight:bold;">حاضر ✓</span>';
+        else if (stat === 'late') statHtml = '<span style="color:#f59e0b; font-weight:bold;">متأخر ⏳</span>';
+        else if (stat === 'absent') statHtml = '<span style="color:#ef4444; font-weight:bold;">غائب ❌</span>';
+        else if (stat === 'makeup') statHtml = '<span style="color:#3b82f6; font-weight:bold;">حاضر (تعويض) 🔄</span>'; // 👈 دعم العرض التعويضي
         
         let pHT = '--'; 
         if(prevSession) { 
-            const p = prevSession.attendance[st.code] || prevSession.attendance[st.phone]; 
-            pHT = p==='present'?'<span style="color:#10b981; font-weight:bold;">حاضر</span>':p==='late'?'<span style="color:#f59e0b; font-weight:bold;">متأخر</span>':p==='absent'?'<span style="color:#ef4444; font-weight:bold;">غائب</span>':'--'; 
+            let pData = prevSession.attendance[st.code] || prevSession.attendance[st.phone]; 
+            let p = typeof pData === 'object' ? pData.status : pData; // معالجة الأوبجكت للحصة السابقة كمان
+
+            if(p === 'present') pHT = '<span style="color:#10b981; font-weight:bold;">حاضر</span>';
+            else if(p === 'late') pHT = '<span style="color:#f59e0b; font-weight:bold;">متأخر</span>';
+            else if(p === 'absent') pHT = '<span style="color:#ef4444; font-weight:bold;">غائب</span>';
+            else if(p === 'makeup') pHT = '<span style="color:#3b82f6; font-weight:bold;">حاضر (تعويض)</span>';
             
             if (window.platformLectures && window.platformTracking) {
                 let linkedLecture = window.platformLectures.find(l => l.linkedSession === prevSession.id || (l.linkedSessions && l.linkedSessions.includes(prevSession.id)));
