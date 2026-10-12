@@ -7302,61 +7302,90 @@ window.closeModal = function(modalId) {
     }
 };
 
-window.checkWhatsappServer = async function() {
-    const nodeStatus = document.getElementById('nodeStatus');
-    const waStatus = document.getElementById('waStatus');
-    const qrContainer = document.getElementById('qrContainer');
-    const qrImage = document.getElementById('qrImage');
+// ==========================================
+// ⚙️ فحص حالة السيرفر ونظام الربط برقم الهاتف
+// ==========================================
+setInterval(async () => {
+    const nodeStatus = document.getElementById("nodeStatus");
+    const waStatus = document.getElementById("waStatus");
+    const phonePairingContainer = document.getElementById("phonePairingContainer");
 
-    if (!nodeStatus || !waStatus) return;
-
-    if (!nodeStatus.innerHTML.includes('✅')) {
-        nodeStatus.innerHTML = "جاري الفحص... ⏳";
-        waStatus.innerHTML = "جاري الفحص... ⏳";
-        if (qrContainer) qrContainer.style.display = "none";
-    }
+    if(!nodeStatus) return; // لو المدرس مش فاتح الشاشة دي، ميعملش حاجة
 
     try {
-        // 👈 نرجع لمسار status عشان هو اللي بيدينا الحالة الحقيقية للسيرفر
-        let statusUrl = `${WHATSAPP_SERVER_URL}/status?clientId=${getSafeUid()}&t=${Date.now()}`;
-        let response = await fetch(statusUrl, { mode: 'cors' });
+        // فحص حالة السيرفر
+        const response = await fetch(`${WHATSAPP_SERVER_URL}/status?clientId=${getSafeUid()}`, {
+            headers: {
+                'ngrok-skip-browser-warning': 'true',
+                'Content-Type': 'application/json'
+            }
+        });
+        const data = await response.json();
         
-        if (!response.ok) throw new Error("Server returned " + response.status);
+        nodeStatus.innerHTML = '<span style="color: #10b981; font-weight: bold;">● يعمل (Online)</span>';
         
-        nodeStatus.innerHTML = "<span style='color: #10b981; font-weight: bold;'>متصل ويعمل بنجاح ✅</span>";
+        if (data.status === 'connected') {
+            waStatus.innerHTML = '<span style="color: #10b981; font-weight: bold;">متصل ✅</span>';
+            if(phonePairingContainer) phonePairingContainer.style.display = "none";
+        } else if (data.status === 'need_scan') {
+            waStatus.innerHTML = '<span style="color: #ef4444; font-weight: bold;">بانتظار الربط 📱</span>';
+            // إظهار مربع إدخال رقم الهاتف لطلب الكود
+            if(phonePairingContainer) phonePairingContainer.style.display = "block";
+        } else {
+            waStatus.innerHTML = '<span style="color: #f59e0b; font-weight: bold;">جاري التهيئة... ⏳</span>';
+            if(phonePairingContainer) phonePairingContainer.style.display = "none";
+        }
+    } catch (e) {
+        nodeStatus.innerHTML = '<span style="color: #ef4444; font-weight: bold;">● متوقف (Offline)</span>';
+        waStatus.innerHTML = '---';
+        if(phonePairingContainer) phonePairingContainer.style.display = "none";
+    }
+}, 5000);
+
+// دالة طلب رمز الربط من السيرفر
+window.requestWaPairingCode = async function() {
+    let phone = document.getElementById("waPairPhone").value.trim();
+    let btn = document.getElementById("requestPairBtn");
+    let displayBox = document.getElementById("pairingCodeDisplay");
+    let codeLabel = document.getElementById("thePairingCode");
+
+    if (!phone) {
+        showToast("يرجى إدخال رقم الواتساب أولاً!", "error");
+        return;
+    }
+
+    btn.innerText = "جاري سحب الرمز... ⏳";
+    btn.disabled = true;
+
+    try {
+        let response = await fetch(`${WHATSAPP_SERVER_URL}/pair-phone`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'ngrok-skip-browser-warning': 'true'
+            },
+            body: JSON.stringify({ clientId: getSafeUid(), phone: phone })
+        });
+        
         let data = await response.json();
         
-        if (data.status === "connected") {
-            waStatus.innerHTML = "<span style='color: #10b981; font-weight: bold;'>الرقم مربوط وجاهز للعمل 📱</span>";
-            if (qrContainer) qrContainer.style.display = "none";
-            if (window.waCheckInterval) clearInterval(window.waCheckInterval); // وقف العداد
+        if (data.success && data.code) {
+            showToast("تم توليد الرمز بنجاح! أدخله في هاتفك الآن.", "success");
+            btn.style.display = "none"; // إخفاء الزر بعد النجاح
+            displayBox.style.display = "block";
             
-        } else if (data.status === "need_scan") {
-            waStatus.innerHTML = "<span style='color: #f59e0b; font-weight: bold;'>في انتظار مسح الباركود ⚠️</span>";
-            
-            // 👈 جلب الباركود فقط لما السيرفر يطلبه
-            let qrUrl = `${WHATSAPP_SERVER_URL}/qr?clientId=${getSafeUid()}&t=${Date.now()}`;
-            let qrRes = await fetch(qrUrl, { mode: 'cors' });
-            let qrData = await qrRes.json();
-
-            if (qrData.qr && qrContainer && qrImage) {
-                if (qrContainer.getAttribute('data-last-qr') !== qrData.qr) {
-                    qrContainer.style.display = "block";
-                    qrImage.innerHTML = ""; 
-                    if (typeof QRCode !== 'undefined') {
-                        new QRCode(qrImage, { text: qrData.qr, width: 200, height: 200 });
-                        qrContainer.setAttribute('data-last-qr', qrData.qr);
-                    }
-                }
-            }
+            // تنسيق الكود عشان يظهر بشياكة (فصل الحروف)
+            let formattedCode = data.code.match(/.{1,4}/g).join('-');
+            codeLabel.innerText = formattedCode;
         } else {
-            // الحالة دي بتظهر في أول 10 لـ 15 ثانية والسيرفر بيحمل الواتساب
-            waStatus.innerHTML = "<span style='color: #f59e0b; font-weight: bold;'>جاري تهيئة محرك الواتساب (انتظر 15 ثانية)... ⏳</span>";
-            if (qrContainer) qrContainer.style.display = "none";
+            showToast(data.error || "فشل توليد الرمز، تأكد من الرقم وحاول مجدداً", "error");
+            btn.innerText = "طلب رمز الربط 📲";
+            btn.disabled = false;
         }
-    } catch (error) {
-        console.error("الفحص فشل:", error);
-        nodeStatus.innerHTML = "<span style='color: #ef4444; font-weight: bold;'>متوقف (Offline) ❌</span>";
-        waStatus.innerHTML = "<span style='color: #ef4444; font-weight: bold;'>غير متصل ❌</span>";
+    } catch (e) {
+        showToast("حدث خطأ في الاتصال بسيرفر الواتساب!", "error");
+        btn.innerText = "طلب رمز الربط 📲";
+        btn.disabled = false;
     }
 };
+

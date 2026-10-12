@@ -1722,16 +1722,28 @@
 
 
     <div id="settingsModal" class="modal">
-        <div class="modal-content" style="width: 450px; text-align: center;">
+        <div class="modal-content" style="width: 450px; text-align: center; border-top: 5px solid #8b5cf6;">
             <span class="close-btn" onclick="closeModal('settingsModal')">&times;</span>
-            <h2 style="margin-bottom: 20px;">مركز تحكم السيرفر ⚙️</h2>
+            <h2 style="margin-bottom: 20px; color: #8b5cf6;">مركز تحكم السيرفر ⚙️</h2>
+            
             <div id="serverStatusBox" style="padding: 15px; border-radius: 8px; background: var(--bg-color); border: 1px solid var(--border-color); margin-bottom: 20px;">
-                <p style="margin-bottom: 10px;">حالة السيرفر (Node.js): <span id="nodeStatus">يتم الفحص...</span></p>
-                <p>حالة الواتساب: <span id="waStatus">يتم الفحص...</span></p>
+                <p style="margin-bottom: 10px; font-weight: bold;">حالة السيرفر (Node.js): <span id="nodeStatus">يتم الفحص...</span></p>
+                <p style="font-weight: bold;">حالة الواتساب: <span id="waStatus">يتم الفحص...</span></p>
             </div>
-            <div id="qrContainer" style="display: none; background: white; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-                <p style="color: #000; margin-bottom: 10px; font-weight: bold;">امسح الكود لربط الواتساب 👇</p>
-                <div id="qrImage" style="margin: 0 auto;"></div> 
+            
+            <!-- 🔗 نظام الربط السريع برقم الهاتف بدل الـ QR -->
+            <div id="phonePairingContainer" style="display: none; background: white; padding: 20px; border-radius: 12px; border: 1px dashed #8b5cf6; margin-bottom: 20px;">
+                <h3 style="color: var(--secondary-color); margin-top: 0;">🔗 ربط الواتساب السريع</h3>
+                <p style="color: var(--text-muted); font-size: 13px; font-weight: bold; margin-bottom: 15px;">أدخل رقم واتساب السنتر لتلقي رمز الربط السري (بدون مسح QR).</p>
+                
+                <input type="text" id="waPairPhone" class="custom-input" placeholder="مثال: 01012345678" style="text-align: center; font-size: 18px; font-weight: bold; letter-spacing: 2px;">
+                <button id="requestPairBtn" class="save-btn" style="background: #8b5cf6; width: 100%; margin-top: 10px; box-shadow: 0 4px 10px rgba(139, 92, 246, 0.3);" onclick="requestWaPairingCode()">طلب رمز الربط 📲</button>
+                
+                <!-- مكان ظهور الكود -->
+                <div id="pairingCodeDisplay" style="display: none; margin-top: 20px; padding: 15px; background: #f8fafc; border-radius: 12px; border: 2px solid #10b981;">
+                    <p style="margin: 0 0 10px 0; color: #10b981; font-weight: bold; font-size: 14px;">✅ افتح إشعار "ربط جهاز" في هاتفك وأدخل هذا الرمز:</p>
+                    <h1 id="thePairingCode" style="margin: 0; letter-spacing: 12px; color: #0f172a; font-size: 38px;"></h1>
+                </div>
             </div>
         </div>
     </div>
